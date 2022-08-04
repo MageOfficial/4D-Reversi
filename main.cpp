@@ -192,6 +192,9 @@ std::cout<<"here"<<std::endl;
                         //std::cout<<"Move: 0x"<<std::hex<<move.move<<" z:"<<move.z<<" w:"<<move.w<<std::endl;
                         if (move.move == sq && move.z == k && move.w == l) {
                             makeMove(fullboard, move, turn);
+                            window.clear();
+                            viewFullBoard(window, *fullboard, TLCorner, size, thick);
+                            window.display();
                             //greedyMoveMake(fullboard, 1 -turn);
                             depthMakeMove(fullboard, 4, 1-turn);
                             //turn=1-turn;

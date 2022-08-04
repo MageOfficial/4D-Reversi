@@ -111,7 +111,13 @@ struct Move {
   int w;
   int z;
   U64 move;
+  int sortVal;
   Move(int w, int z, U64 move) : w(w), z(z), move(move) {}
+
+  bool operator < (const Move& move) const
+    {
+        return (sortVal > move.sortVal);
+    }
 };
 
 void updateScore(FullBoard* fullboard) {
