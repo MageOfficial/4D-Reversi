@@ -68,7 +68,7 @@ struct FullBoard {
   int w_size;
   int z_size;
 
-  int score[4];
+  int score[4] = {};
 
   U64 boardArea;
   U64 notLeft;
@@ -91,10 +91,7 @@ struct FullBoard {
     else {
       notRight = boardArea;
     }
-    score[0] = 0;
-    score[1] = 0;
-    score[2] = 0;
-    score[3] = 0;
+
     for (int i = 0; i < w_size; i++) {
       for (int j = 0; j < z_size; j++) {
         Board curBoard = w_axis[i].z_axis[j];
@@ -121,13 +118,10 @@ struct Move {
 };
 
 void updateScore(FullBoard* fullboard) {
-  fullboard->score[0] = 0;
-  fullboard->score[1] = 0;
-  fullboard->score[2] = 0;
-  fullboard->score[3] = 0;
+  std::fill(std::begin(fullboard->score), std::end(fullboard->score), 0);
   for (int i = 0; i < fullboard->w_size; i++) {
     for (int j = 0; j < fullboard->z_size; j++) {
-      Board curBoard = fullboard->w_axis[i].z_axis[j];
+      auto& curBoard = fullboard->w_axis[i].z_axis[j];
       fullboard->score[0] += Bitcount(curBoard.board[0]);
       fullboard->score[1] += Bitcount(curBoard.board[1]);
       fullboard->score[2] += Bitcount(curBoard.board[2]);
@@ -136,20 +130,14 @@ void updateScore(FullBoard* fullboard) {
   }
 }
 
+//Recursively makes moves in 3D and 4D
 template<int dir> void makeMoveRecursive(FullBoard* fullboard, int color, const int w, const int z, U64 candidates[9], bool bools[9]) {
-  int newW, newZ;
-  if constexpr (dir == 0) { newW = w + 1; newZ = z; }
-  if constexpr (dir == 1) { newW = w + 1; newZ = z + 1; }
-  if constexpr (dir == 2) { newW = w; newZ = z + 1; }
-  if constexpr (dir == 3) { newW = w - 1; newZ = z + 1; }
-  if constexpr (dir == 4) { newW = w - 1; newZ = z; }
-  if constexpr (dir == 5) { newW = w - 1; newZ = z - 1; }
-  if constexpr (dir == 6) { newW = w; newZ = z - 1; }
-  if constexpr (dir == 7) { newW = w + 1; newZ = z - 1; }
-
-  if (newW < 0 || newW >= fullboard->w_size || newZ < 0 || newZ >= fullboard->z_size) {
-    return;
-  }
+  static constexpr int dW[] = {1, 1, 0, -1, -1, -1, 0, 1};
+  static constexpr int dZ[] = {0, 1, 1, 1, 0, -1, -1, -1};
+  
+  int newW = w + dW[dir], newZ = z + dZ[dir];
+  if (newW < 0 || newW >= fullboard->w_size || newZ < 0 || newZ >= fullboard->z_size) return;
+  
   Board* curBoard = &(fullboard->w_axis[newW].z_axis[newZ]);
 
   U64 tempCandidates[9] = {
@@ -164,25 +152,15 @@ template<int dir> void makeMoveRecursive(FullBoard* fullboard, int color, const 
     (candidates[8] >> 7) & fullboard->notLeft & fullboard->boardArea
   };
 
-  U64 currentCandidates[9] = {
-    curBoard->board[1 - color] & tempCandidates[0],
-    curBoard->board[1 - color] & tempCandidates[1],
-    curBoard->board[1 - color] & tempCandidates[2],
-    curBoard->board[1 - color] & tempCandidates[3],
-    curBoard->board[1 - color] & tempCandidates[4],
-    curBoard->board[1 - color] & tempCandidates[5],
-    curBoard->board[1 - color] & tempCandidates[6],
-    curBoard->board[1 - color] & tempCandidates[7],
-    curBoard->board[1 - color] & tempCandidates[8]
-  };
+U64 currentCandidates[9];
+for (int i = 0; i < 9; i++) 
+    currentCandidates[i] = curBoard->board[1 - color] & tempCandidates[i];
 
   bool newBoolArray[9];
   for (int i = 0; i < 9;i++) {
     bools[i] = (bools[i] || ((curBoard->board[color] & tempCandidates[i]) != 0));
     newBoolArray[i] = bools[i];
   }
-
-
 
   makeMoveRecursive<dir>(fullboard, color, newW, newZ, currentCandidates, bools);
 
@@ -195,150 +173,57 @@ template<int dir> void makeMoveRecursive(FullBoard* fullboard, int color, const 
   return;
 }
 
+//Clears up repeated code in makeMove
+void processDirection(U64& toFlip, U64 move, int shift, U64 boundary, const Board* curBoard, int color) {
+    U64 candidates = curBoard->board[1 - color] & ((shift > 0) ? (move << shift) : (move >> -shift)) & boundary;
+    U64 possibleFlips = candidates;
+    while (candidates != 0) {
+        candidates = ((shift > 0) ? (candidates << shift) : (candidates >> -shift)) & boundary;
+        if (curBoard->board[color] & candidates) {
+            toFlip |= possibleFlips;
+            break;
+        }
+        possibleFlips |= curBoard->board[1 - color] & candidates;
+        candidates = curBoard->board[1 - color] & candidates;
+    }
+}
+  
+//Makes a move on the 2D board and calls makeMoveRecursive for 3D and 4D
 void makeMove(FullBoard* fullboard, Move move, int color) {
   Board* curBoard = &(fullboard->w_axis[move.w].z_axis[move.z]);
   curBoard->board[color] |= move.move;
   curBoard->board[2] |= move.move;
 
-  {//2D
-    U64 toFlip = 0;
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move >> 1) & fullboard->notRight;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates >> 1) & fullboard->notRight;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move >> 7) & fullboard->notLeft & fullboard->boardArea;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates >> 7) & fullboard->notLeft & fullboard->boardArea;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move >> 8) & fullboard->boardArea;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates >> 8) & fullboard->boardArea;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move >> 9) & fullboard->notRight;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates >> 9) & fullboard->notRight;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move << 1) & fullboard->notLeft & fullboard->boardArea;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates << 1) & fullboard->notLeft & fullboard->boardArea;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move << 7) & fullboard->notRight;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates << 7) & fullboard->notRight;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move << 8) & fullboard->boardArea;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates << 8) & fullboard->boardArea;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    {
-      U64 candidates = curBoard->board[1 - color] & (move.move << 9) & fullboard->notLeft & fullboard->boardArea;
-      U64 possibleFlips = candidates;
-      while (candidates != 0) {
-        candidates = (candidates << 9) & fullboard->notLeft & fullboard->boardArea;
-        if ((curBoard->board[color] & candidates) != 0) {
-          toFlip |= possibleFlips;
-          break;
-        }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
-      }
-    }
-    curBoard->board[color] ^= toFlip;
-    curBoard->board[1 - color] ^= toFlip;
-  }
+  //2D
+  U64 toFlip = 0;
+  processDirection(toFlip, move.move, -1, fullboard->notRight, curBoard, color);
+  processDirection(toFlip, move.move, -7, fullboard->notLeft & fullboard->boardArea, curBoard, color);
+  processDirection(toFlip, move.move, -8, fullboard->boardArea, curBoard, color);
+  processDirection(toFlip, move.move, -9, fullboard->notRight, curBoard, color);
+  processDirection(toFlip, move.move, 1, fullboard->notLeft & fullboard->boardArea, curBoard, color);
+  processDirection(toFlip, move.move, 7, fullboard->notRight, curBoard, color);
+  processDirection(toFlip, move.move, 8, fullboard->boardArea, curBoard, color);
+  processDirection(toFlip, move.move, 9, fullboard->notLeft & fullboard->boardArea, curBoard, color);
 
-  {//3D&4D
-    U64 candidatesArray[9] = {
-      move.move,
-      move.move,
-      move.move,
-      move.move,
-      move.move,
-      move.move,
-      move.move,
-      move.move,
-      move.move
-    };
-    bool boolArray0[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray1[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray2[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray3[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray4[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray5[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray6[9] = { false,false,false,false,false,false,false,false,false };
-    bool boolArray7[9] = { false,false,false,false,false,false,false,false,false };
+  
+  curBoard->board[color] ^= toFlip;
+  curBoard->board[1 - color] ^= toFlip;
+  
+  {//3D & 4D
+      U64 candidatesArray[9];
+      std::fill(std::begin(candidatesArray), std::end(candidatesArray), move.move);
+      bool boolArrays[8][9] = {};
+      for (int i = 0; i < 8; i++) 
+        std::fill(std::begin(boolArrays[i]), std::end(boolArrays[i]), false);
 
-    makeMoveRecursive<0>(fullboard, color, move.w, move.z, candidatesArray, boolArray0);
-    makeMoveRecursive<1>(fullboard, color, move.w, move.z, candidatesArray, boolArray1);
-    makeMoveRecursive<2>(fullboard, color, move.w, move.z, candidatesArray, boolArray2);
-    makeMoveRecursive<3>(fullboard, color, move.w, move.z, candidatesArray, boolArray3);
-    makeMoveRecursive<4>(fullboard, color, move.w, move.z, candidatesArray, boolArray4);
-    makeMoveRecursive<5>(fullboard, color, move.w, move.z, candidatesArray, boolArray5);
-    makeMoveRecursive<6>(fullboard, color, move.w, move.z, candidatesArray, boolArray6);
-    makeMoveRecursive<7>(fullboard, color, move.w, move.z, candidatesArray, boolArray7);
+      makeMoveRecursive<0>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[0]);
+      makeMoveRecursive<1>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[1]);
+      makeMoveRecursive<2>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[2]);
+      makeMoveRecursive<3>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[3]);
+      makeMoveRecursive<4>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[4]);
+      makeMoveRecursive<5>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[5]);
+      makeMoveRecursive<6>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[6]);
+      makeMoveRecursive<7>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[7]);
   }
 
   updateScore(fullboard);
@@ -397,6 +282,22 @@ void printFullBoard(FullBoard fullboard) {
   std::cout << output << std::endl;
 }
 
+//Removes repeat code in movegen
+U64 calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 fullboardCondition, int shift) {
+    U64 moves = 0;
+    U64 candidates;
+    
+    candidates = enemyPieces & ((shift>0)?(playerPieces >> shift):(playerPieces << -shift)) & fullboardCondition;
+    while (candidates != 0) {
+        candidates = ((shift>0)?(candidates >> shift):(candidates << -shift)) & fullboardCondition;
+        
+        moves |= unoccupied & candidates;
+        candidates = enemyPieces & candidates;
+    }
+
+    return moves;
+}
+
 std::vector<Move> movegen(FullBoard fullboard, int color) {
   //Spatial Moves
   std::vector<Move> moveList;
@@ -410,72 +311,15 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
         //2D
         {
           U64 moves = 0;
-          //right shift
-          {
-            U64 candidates = enemyPieces & (playerPieces >> 1) & fullboard.notRight;
-            while (candidates != 0) {
-              candidates = (candidates >> 1) & fullboard.notRight;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          {
-            U64 candidates = enemyPieces & (playerPieces >> 7) & fullboard.notLeft & fullboard.boardArea;
-            while (candidates != 0) {
-              candidates = (candidates >> 7) & fullboard.notLeft & fullboard.boardArea;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          {
-            U64 candidates = enemyPieces & (playerPieces >> 8) & fullboard.boardArea;
-            while (candidates != 0) {
-              candidates = (candidates >> 8) & fullboard.boardArea;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          {
-            U64 candidates = enemyPieces & (playerPieces >> 9) & fullboard.notRight;
-            while (candidates != 0) {
-              candidates = (candidates >> 9) & fullboard.notRight;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          //left shift
-          {
-            U64 candidates = enemyPieces & (playerPieces << 1) & fullboard.notLeft & fullboard.boardArea;
-            while (candidates != 0) {
-              candidates = (candidates << 1) & fullboard.notLeft & fullboard.boardArea;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          {
-            U64 candidates = enemyPieces & (playerPieces << 7) & fullboard.notRight;
-            while (candidates != 0) {
-              candidates = (candidates << 7) & fullboard.notRight;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          {
-            U64 candidates = enemyPieces & (playerPieces << 8) & fullboard.boardArea;
-            while (candidates != 0) {
-              candidates = (candidates << 8) & fullboard.boardArea;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
-          {
-            U64 candidates = enemyPieces & (playerPieces << 9) & fullboard.notLeft & fullboard.boardArea;
-            while (candidates != 0) {
-              candidates = (candidates << 9) & fullboard.notLeft & fullboard.boardArea;
-              moves |= unoccupied & candidates;
-              candidates = enemyPieces & candidates;
-            }
-          }
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.notRight, 1);
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.notLeft & fullboard.boardArea, 7);
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.boardArea, 8);
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.notRight, 9);
+          
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.notLeft & fullboard.boardArea, -1);
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.notRight, -7);
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.boardArea, -8);
+          moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, fullboard.notLeft & fullboard.boardArea, -9);
 
           //MoveStorage
           while (moves) {
@@ -486,42 +330,19 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
         //3D&4D
         {
           Board nextBoard = Board(0, 0);
-          int iChange, jChange;
+          int directionOffsets[8][2] = {
+              { 1,  0},  // Direction 0: right
+              { 1,  1},  // Direction 1: top-right
+              { 0,  1},  // Direction 2: up
+              {-1,  1},  // Direction 3: top-left
+              {-1,  0},  // Direction 4: left
+              {-1, -1},  // Direction 5: bottom-left
+              { 0, -1},  // Direction 6: down
+              { 1, -1}   // Direction 7: bottom-right
+          };
           for (int dir = 0;dir < 8;dir++) {
-            if (dir == 0) {
-              iChange = i + 1;
-              jChange = j;
-            }
-            else if (dir == 1) {
-              iChange = i + 1;
-              jChange = j + 1;
-            }
-            else if (dir == 2) {
-              iChange = i;
-              jChange = j + 1;
-            }
-            else if (dir == 3) {
-              iChange = i - 1;
-              jChange = j + 1;
-            }
-            else if (dir == 4) {
-              iChange = i - 1;
-              jChange = j;
-            }
-            else if (dir == 5) {
-              iChange = i - 1;
-              jChange = j - 1;
-            }
-            else if (dir == 6) {
-              iChange = i;
-              jChange = j - 1;
-            }
-            else if (dir == 7) {
-              iChange = i + 1;
-              jChange = j - 1;
-            }
-
-
+            int iChange = i + directionOffsets[dir][0];
+            int jChange = j + directionOffsets[dir][1];
             if (iChange >= 0 && iChange < fullboard.w_size && jChange >= 0 && jChange < fullboard.z_size) {
               nextBoard = fullboard.w_axis[iChange].z_axis[jChange];
               U64 candidates[9] = {
@@ -537,38 +358,10 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
               };
 
               int increment = 2;
-              if (dir == 0) {
-                iChange = i + increment;
-                jChange = j;
-              }
-              else if (dir == 1) {
-                iChange = i + increment;
-                jChange = j + increment;
-              }
-              else if (dir == 2) {
-                iChange = i;
-                jChange = j + increment;
-              }
-              else if (dir == 3) {
-                iChange = i - increment;
-                jChange = j + increment;
-              }
-              else if (dir == 4) {
-                iChange = i - increment;
-                jChange = j;
-              }
-              else if (dir == 5) {
-                iChange = i - increment;
-                jChange = j - increment;
-              }
-              else if (dir == 6) {
-                iChange = i;
-                jChange = j - increment;
-              }
-              else if (dir == 7) {
-                iChange = i + increment;
-                jChange = j - increment;
-              }
+              
+              iChange = i + increment*directionOffsets[dir][0];
+              jChange = j + increment*directionOffsets[dir][1];
+
 
               while (iChange >= 0 && iChange < fullboard.w_size && jChange >= 0 && jChange < fullboard.z_size) {
 
@@ -595,38 +388,8 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
                 }
 
                 increment++;
-                if (dir == 0) {
-                  iChange = i + increment;
-                  jChange = j;
-                }
-                else if (dir == 1) {
-                  iChange = i + increment;
-                  jChange = j + increment;
-                }
-                else if (dir == 2) {
-                  iChange = i;
-                  jChange = j + increment;
-                }
-                else if (dir == 3) {
-                  iChange = i - increment;
-                  jChange = j + increment;
-                }
-                else if (dir == 4) {
-                  iChange = i - increment;
-                  jChange = j;
-                }
-                else if (dir == 5) {
-                  iChange = i - increment;
-                  jChange = j - increment;
-                }
-                else if (dir == 6) {
-                  iChange = i;
-                  jChange = j - increment;
-                }
-                else if (dir == 7) {
-                  iChange = i + increment;
-                  jChange = j - increment;
-                }
+                iChange = i + increment*directionOffsets[dir][0];
+                jChange = j + increment*directionOffsets[dir][1];
               }
             }
           }

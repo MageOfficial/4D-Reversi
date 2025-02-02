@@ -17,7 +17,7 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
     String scoreStr=std::to_string(fullboard.score[0])+" : "+std::to_string(fullboard.score[1]);
     text.setString(scoreStr);
     text.setCharacterSize(50); 
-    text.setPosition(400,10);
+    text.setPosition(sf::Vector2f(400,10));
     window.draw(text);
 
     sf::Texture whitePieceText, blackPieceText;
@@ -31,11 +31,11 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
                     sf::RectangleShape rectangle;
                     sf::Color color(120, 120, 120);
                     rectangle.setSize(sf::Vector2f(size, size));
-                    rectangle.setOrigin(size / 2, size / 2);
+                    rectangle.setOrigin(sf::Vector2f(size / 2, size / 2));
                     rectangle.setFillColor(color);
                     rectangle.setOutlineColor(sf::Color::Black);
                     rectangle.setOutlineThickness(thick);
-                    rectangle.setPosition(TLCorner.posX + (size + thick) * i + ((size + thick) * fullboard.board_size + 4) * l, TLCorner.posY + (size + thick) * j + ((size + thick) * fullboard.board_size + 4) * k);
+                    rectangle.setPosition(sf::Vector2f(TLCorner.posX + (size + thick) * i + ((size + thick) * fullboard.board_size + 4) * l, TLCorner.posY + (size + thick) * j + ((size + thick) * fullboard.board_size + 4) * k));
                     window.draw(rectangle);
 
                     Board curBoard = fullboard.w_axis[l].z_axis[fullboard.z_size - 1 - k];
@@ -43,19 +43,19 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
                     if ((curBoard.board[0] & sq) != 0) {
                         //std::cout<<"Black: "<<l<<" "<< i<<" "<<k<<" "<<j<<std::endl;
                         sf::CircleShape circle(size * .475, 120ULL);
-                        circle.setOrigin(circle.getRadius(), circle.getRadius());
+                        circle.setOrigin(sf::Vector2f(circle.getRadius(), circle.getRadius()));
                         circle.setTexture(&blackPieceText);
                         //circle.setFillColor(sf::Color::Black);
-                        circle.setPosition(TLCorner.posX + (size + thick) * i + ((size + thick) * fullboard.board_size + 4) * l, TLCorner.posY + (size + thick) * j + ((size + thick) * fullboard.board_size + 4) * k);
+                        circle.setPosition(sf::Vector2f(TLCorner.posX + (size + thick) * i + ((size + thick) * fullboard.board_size + 4) * l, TLCorner.posY + (size + thick) * j + ((size + thick) * fullboard.board_size + 4) * k));
                         window.draw(circle);
                     }
                     else if ((curBoard.board[1] & sq) != 0) {
                         //std::cout<<"White: "<<l<<" "<< i<<" "<<k<<" "<<j<<std::endl;
                         sf::CircleShape circle(size * .475, 120ULL);
-                        circle.setOrigin(circle.getRadius(), circle.getRadius());
+                        circle.setOrigin(sf::Vector2f(circle.getRadius(), circle.getRadius()));
                         circle.setTexture(&whitePieceText);
                         //circle.setFillColor(sf::Color::White);
-                        circle.setPosition(TLCorner.posX + (size + thick) * i + ((size + thick) * fullboard.board_size + 4) * l, TLCorner.posY + (size + thick) * j + ((size + thick) * fullboard.board_size + 4) * k);
+                        circle.setPosition(sf::Vector2f(TLCorner.posX + (size + thick) * i + ((size + thick) * fullboard.board_size + 4) * l, TLCorner.posY + (size + thick) * j + ((size + thick) * fullboard.board_size + 4) * k));
                         window.draw(circle);
                     }
                 }
@@ -66,7 +66,7 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
 
 void viewMoves(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner, int size, int thick, std::vector<Move> moveList, int turn) {
     sf::CircleShape circle(size / 3, 120ULL);
-    circle.setOrigin(circle.getRadius(), circle.getRadius());
+    circle.setOrigin(sf::Vector2f(circle.getRadius(), circle.getRadius()));
     if (turn == 0) {
         sf::Color color(80, 80, 80);
         circle.setFillColor(color);
@@ -78,7 +78,7 @@ void viewMoves(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner
     for (Move& move : moveList) {
         int idx = SquareOf(move.move);
 
-        circle.setPosition(TLCorner.posX + (size + thick) * (idx % 8) + ((size + thick) * fullboard.board_size + 4) * move.w, TLCorner.posY + (size + thick) * (fullboard.board_size - 1 - (idx / 8)) + ((size + thick) * fullboard.board_size + 4) * (fullboard.z_size - 1 - move.z));
+        circle.setPosition(sf::Vector2f(TLCorner.posX + (size + thick) * (idx % 8) + ((size + thick) * fullboard.board_size + 4) * move.w, TLCorner.posY + (size + thick) * (fullboard.board_size - 1 - (idx / 8)) + ((size + thick) * fullboard.board_size + 4) * (fullboard.z_size - 1 - move.z)));
         window.draw(circle);
     }
 }
