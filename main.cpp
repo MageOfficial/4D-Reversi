@@ -64,14 +64,14 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
     }
 }
 
-void viewMoves(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner, int size, int thick, std::vector<Move> moveList, int turn) {
+void viewMoves(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner, int size, int thick, std::vector<Move> moveList) {
     sf::CircleShape circle(size / 3, 120ULL);
     circle.setOrigin(sf::Vector2f(circle.getRadius(), circle.getRadius()));
-    if (turn == 0) {
+    if (!fullboard.color) {
         sf::Color color(80, 80, 80);
         circle.setFillColor(color);
     }
-    else if (turn == 1) {
+    else if (fullboard.color) {
         sf::Color color(180, 180, 180);
         circle.setFillColor(color);
     }
@@ -152,22 +152,20 @@ std::cout<<"here"<<std::endl;
     float x, y;
     int size = 50;
     int thick = 3;
-    int turn = 0;
     Reference TLCorner = { 50, 100 };
-    std::vector<Move> moveList = movegen(*fullboard, turn);
+    std::vector<Move> moveList = movegen(*fullboard);
     while (window.isOpen()) {
 
         window.clear();
 
         viewFullBoard(window, *fullboard, TLCorner, size, thick);
         if (moveList.empty()) {
-            turn = 1 - turn;
-            moveList = movegen(*fullboard, turn);
+            moveList = movegen(*fullboard);
             if (moveList.empty()) {
                 std::cout << "gameOver" << std::endl;
             }
         }
-        viewMoves(window, *fullboard, TLCorner, size, thick, moveList, turn);
+        viewMoves(window, *fullboard, TLCorner, size, thick, moveList);
 
         window.display();
 
@@ -179,7 +177,7 @@ std::cout<<"here"<<std::endl;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) { window.close(); }
 
-            if (event.type == sf::Event::MouseButtonPressed) {
+            if (event.type == sf::Event::MouseButtonPressed && fullboard->color == 0) {
                 if (event.key.code == sf::Mouse::Left) {
                     int l = (x - (TLCorner.posX - size / 2)) / ((size + thick) * fullboard->board_size + 4);
                     int i = ((x - (TLCorner.posX - size / 2)) / ((size + thick) * fullboard->board_size + 4) - l) * fullboard->board_size;
@@ -191,14 +189,15 @@ std::cout<<"here"<<std::endl;
                     for (Move& move : moveList) {
                         //std::cout<<"Move: 0x"<<std::hex<<move.move<<" z:"<<move.z<<" w:"<<move.w<<std::endl;
                         if (move.move == sq && move.z == k && move.w == l) {
-                            makeMove(fullboard, move, turn);
+                            makeMove(fullboard, move);
                             window.clear();
                             viewFullBoard(window, *fullboard, TLCorner, size, thick);
                             window.display();
-                            //greedyMoveMake(fullboard, 1 -turn);
-                            depthMakeMove(fullboard, 4, 1-turn);
-                            //turn=1-turn;
-                            moveList = movegen(*fullboard, turn);
+                            std::cout<<(int)fullboard->color<<std::endl;
+                            //greedyMoveMake(fullboard);
+                            depthMakeMove(fullboard, 4);
+                            
+                            moveList = movegen(*fullboard);
                             break;
                         }
                     }

@@ -67,6 +67,7 @@ struct FullBoard {
   int board_size;
   int w_size;
   int z_size;
+  bool color = 0; //0 for black 1 for white
 
   int score[4] = {};
 
@@ -131,7 +132,7 @@ void updateScore(FullBoard* fullboard) {
 }
 
 //Recursively makes moves in 3D and 4D
-template<int dir> void makeMoveRecursive(FullBoard* fullboard, int color, const int w, const int z, U64 candidates[9], bool bools[9]) {
+template<int dir> void makeMoveRecursive(FullBoard* fullboard, const int w, const int z, U64 candidates[9], bool bools[9]) {
   static constexpr int dW[] = {1, 1, 0, -1, -1, -1, 0, 1};
   static constexpr int dZ[] = {0, 1, 1, 1, 0, -1, -1, -1};
   
@@ -154,20 +155,20 @@ template<int dir> void makeMoveRecursive(FullBoard* fullboard, int color, const 
 
 U64 currentCandidates[9];
 for (int i = 0; i < 9; i++) 
-    currentCandidates[i] = curBoard->board[1 - color] & tempCandidates[i];
+    currentCandidates[i] = curBoard->board[!fullboard->color] & tempCandidates[i];
 
   bool newBoolArray[9];
   for (int i = 0; i < 9;i++) {
-    bools[i] = (bools[i] || ((curBoard->board[color] & tempCandidates[i]) != 0));
+    bools[i] = (bools[i] || ((curBoard->board[fullboard->color] & tempCandidates[i]) != 0));
     newBoolArray[i] = bools[i];
   }
 
-  makeMoveRecursive<dir>(fullboard, color, newW, newZ, currentCandidates, bools);
+  makeMoveRecursive<dir>(fullboard, newW, newZ, currentCandidates, bools);
 
   for (int i = 0; i < 9; i++) {
     if ((!newBoolArray[i]) && (bools[i])) {
-      curBoard->board[color] ^= currentCandidates[i];
-      curBoard->board[1 - color] ^= currentCandidates[i];
+      curBoard->board[fullboard->color] ^= currentCandidates[i];
+      curBoard->board[!fullboard->color] ^= currentCandidates[i];
     }
   }
   return;
@@ -189,25 +190,25 @@ void processDirection(U64& toFlip, U64 move, int shift, U64 boundary, const Boar
 }
   
 //Makes a move on the 2D board and calls makeMoveRecursive for 3D and 4D
-void makeMove(FullBoard* fullboard, Move move, int color) {
+void makeMove(FullBoard* fullboard, Move move) {
   Board* curBoard = &(fullboard->w_axis[move.w].z_axis[move.z]);
-  curBoard->board[color] |= move.move;
+  curBoard->board[fullboard->color] |= move.move;
   curBoard->board[2] |= move.move;
 
   //2D
   U64 toFlip = 0;
-  processDirection(toFlip, move.move, -1, fullboard->notRight, curBoard, color);
-  processDirection(toFlip, move.move, -7, fullboard->notLeft & fullboard->boardArea, curBoard, color);
-  processDirection(toFlip, move.move, -8, fullboard->boardArea, curBoard, color);
-  processDirection(toFlip, move.move, -9, fullboard->notRight, curBoard, color);
-  processDirection(toFlip, move.move, 1, fullboard->notLeft & fullboard->boardArea, curBoard, color);
-  processDirection(toFlip, move.move, 7, fullboard->notRight, curBoard, color);
-  processDirection(toFlip, move.move, 8, fullboard->boardArea, curBoard, color);
-  processDirection(toFlip, move.move, 9, fullboard->notLeft & fullboard->boardArea, curBoard, color);
+  processDirection(toFlip, move.move, -1, fullboard->notRight, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, -7, fullboard->notLeft & fullboard->boardArea, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, -8, fullboard->boardArea, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, -9, fullboard->notRight, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, 1, fullboard->notLeft & fullboard->boardArea, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, 7, fullboard->notRight, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, 8, fullboard->boardArea, curBoard, fullboard->color);
+  processDirection(toFlip, move.move, 9, fullboard->notLeft & fullboard->boardArea, curBoard, fullboard->color);
 
   
-  curBoard->board[color] ^= toFlip;
-  curBoard->board[1 - color] ^= toFlip;
+  curBoard->board[fullboard->color] ^= toFlip;
+  curBoard->board[!fullboard->color] ^= toFlip;
   
   {//3D & 4D
       U64 candidatesArray[9];
@@ -216,16 +217,16 @@ void makeMove(FullBoard* fullboard, Move move, int color) {
       for (int i = 0; i < 8; i++) 
         std::fill(std::begin(boolArrays[i]), std::end(boolArrays[i]), false);
 
-      makeMoveRecursive<0>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[0]);
-      makeMoveRecursive<1>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[1]);
-      makeMoveRecursive<2>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[2]);
-      makeMoveRecursive<3>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[3]);
-      makeMoveRecursive<4>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[4]);
-      makeMoveRecursive<5>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[5]);
-      makeMoveRecursive<6>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[6]);
-      makeMoveRecursive<7>(fullboard, color, move.w, move.z, candidatesArray, boolArrays[7]);
+      makeMoveRecursive<0>(fullboard, move.w, move.z, candidatesArray, boolArrays[0]);
+      makeMoveRecursive<1>(fullboard, move.w, move.z, candidatesArray, boolArrays[1]);
+      makeMoveRecursive<2>(fullboard, move.w, move.z, candidatesArray, boolArrays[2]);
+      makeMoveRecursive<3>(fullboard, move.w, move.z, candidatesArray, boolArrays[3]);
+      makeMoveRecursive<4>(fullboard, move.w, move.z, candidatesArray, boolArrays[4]);
+      makeMoveRecursive<5>(fullboard, move.w, move.z, candidatesArray, boolArrays[5]);
+      makeMoveRecursive<6>(fullboard, move.w, move.z, candidatesArray, boolArrays[6]);
+      makeMoveRecursive<7>(fullboard, move.w, move.z, candidatesArray, boolArrays[7]);
   }
-
+  fullboard->color = !fullboard->color;
   updateScore(fullboard);
 }
 
@@ -298,15 +299,15 @@ U64 calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 fullbo
     return moves;
 }
 
-std::vector<Move> movegen(FullBoard fullboard, int color) {
+std::vector<Move> movegen(FullBoard fullboard) {
   //Spatial Moves
   std::vector<Move> moveList;
   {
     for (int i = 0; i < fullboard.w_size; i++) {
       for (int j = 0; j < fullboard.z_size; j++) {
         Board curBoard = fullboard.w_axis[i].z_axis[j];
-        U64 playerPieces = curBoard.board[color];
-        U64 enemyPieces = curBoard.board[1 - color];
+        U64 playerPieces = curBoard.board[fullboard.color];
+        U64 enemyPieces = curBoard.board[1 - fullboard.color];
         U64 unoccupied = ~curBoard.board[2];
         //2D
         {
@@ -346,15 +347,15 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
             if (iChange >= 0 && iChange < fullboard.w_size && jChange >= 0 && jChange < fullboard.z_size) {
               nextBoard = fullboard.w_axis[iChange].z_axis[jChange];
               U64 candidates[9] = {
-              nextBoard.board[1 - color] & (playerPieces),
-              nextBoard.board[1 - color] & (playerPieces << 1) & fullboard.notLeft & fullboard.boardArea,
-              nextBoard.board[1 - color] & (playerPieces << 9) & fullboard.notLeft & fullboard.boardArea,
-              nextBoard.board[1 - color] & (playerPieces << 8) & fullboard.notLeft & fullboard.boardArea,
-              nextBoard.board[1 - color] & (playerPieces << 7) & fullboard.notRight,
-              nextBoard.board[1 - color] & (playerPieces >> 1) & fullboard.notRight,
-              nextBoard.board[1 - color] & (playerPieces >> 9) & fullboard.notRight,
-              nextBoard.board[1 - color] & (playerPieces >> 8) & fullboard.notRight,
-              nextBoard.board[1 - color] & (playerPieces >> 7) & fullboard.notLeft & fullboard.boardArea
+                nextBoard.board[1 - fullboard.color] & (playerPieces),
+                nextBoard.board[1 - fullboard.color] & (playerPieces << 1) & fullboard.notLeft & fullboard.boardArea,
+                nextBoard.board[1 - fullboard.color] & (playerPieces << 9) & fullboard.notLeft & fullboard.boardArea,
+                nextBoard.board[1 - fullboard.color] & (playerPieces << 8) & fullboard.notLeft & fullboard.boardArea,
+                nextBoard.board[1 - fullboard.color] & (playerPieces << 7) & fullboard.notRight,
+                nextBoard.board[1 - fullboard.color] & (playerPieces >> 1) & fullboard.notRight,
+                nextBoard.board[1 - fullboard.color] & (playerPieces >> 9) & fullboard.notRight,
+                nextBoard.board[1 - fullboard.color] & (playerPieces >> 8) & fullboard.notRight,
+                nextBoard.board[1 - fullboard.color] & (playerPieces >> 7) & fullboard.notLeft & fullboard.boardArea
               };
 
               int increment = 2;
@@ -379,7 +380,7 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
                 U64 moves = 0;
                 for (int d = 0; d < 9;d++) {
                   moves |= ~nextBoard.board[2] & candidates[d];
-                  candidates[d] = nextBoard.board[1 - color] & candidates[d];
+                  candidates[d] = nextBoard.board[1 - fullboard.color] & candidates[d];
                 }
 
                 //std::cout<<"Move: 0x"<<std::hex<<moves<<" z:"<<iChange<<" w:"<<jChange<<std::endl;
@@ -400,8 +401,8 @@ std::vector<Move> movegen(FullBoard fullboard, int color) {
   }
 };
 
-bool gameOver(FullBoard fullboard, int color) {
-  return movegen(fullboard, color).empty() && movegen(fullboard, 1 - color).empty();
+bool gameOver(FullBoard fullboard) {
+  return movegen(fullboard).empty() && movegen(fullboard).empty();
 }
 
 //int main() {
