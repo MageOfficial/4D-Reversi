@@ -8,13 +8,13 @@ struct Reference {
     int posY;
 };
 
-void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner, int size, int thick) {
+void viewFullBoard(sf::RenderWindow& window, FullBoard& fullboard, Reference TLCorner, int size, int thick) {
 
     sf::Text text;
     sf::Font font;
     font.loadFromFile("C:\\Windows\\Fonts\\ARIAL.ttf");
     text.setFont(font); 
-    String scoreStr=std::to_string(fullboard.score[0])+" : "+std::to_string(fullboard.score[1]);
+    string scoreStr=std::to_string(fullboard.score[0])+" : "+std::to_string(fullboard.score[1]);
     text.setString(scoreStr);
     text.setCharacterSize(50); 
     text.setPosition(sf::Vector2f(400,10));
@@ -29,7 +29,7 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
             for (int j = fullboard.board_size - 1; j >= 0; j--) {
                 for (int i = 0; i < fullboard.board_size; i++) {
                     sf::RectangleShape rectangle;
-                    sf::Color color(120, 120, 120);
+                    sf::Color color(00, 160, 80);
                     rectangle.setSize(sf::Vector2f(size, size));
                     rectangle.setOrigin(sf::Vector2f(size / 2, size / 2));
                     rectangle.setFillColor(color);
@@ -64,7 +64,7 @@ void viewFullBoard(sf::RenderWindow& window, FullBoard fullboard, Reference TLCo
     }
 }
 
-void viewMoves(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner, int size, int thick, std::vector<Move> moveList) {
+void viewMoves(sf::RenderWindow& window, FullBoard& fullboard, Reference TLCorner, int size, int thick, std::vector<Move> moveList) {
     sf::CircleShape circle(size / 3, 120ULL);
     circle.setOrigin(sf::Vector2f(circle.getRadius(), circle.getRadius()));
     if (!fullboard.color) {
@@ -87,35 +87,6 @@ void viewMoves(sf::RenderWindow& window, FullBoard fullboard, Reference TLCorner
 int main() {
 std::cout<<"here"<<std::endl;
     system("chcp 65001 > nul");
-    /*
-    Board* board0 = new Board(0, 0);
-    Board* board1 = new Board(0x810000000ULL, 0x1008000000ULL);
-    Board* board2 = new Board(0x1008000000ULL, 0x810000000ULL);
-    BoardStack* stack1 = new BoardStack();
-    BoardStack* stack2 = new BoardStack();
-    BoardStack* stack3 = new BoardStack();
-    BoardStack* stack4 = new BoardStack();
-    stack1->z_axis.push_back(*board0);
-    stack1->z_axis.push_back(*board0);
-    stack1->z_axis.push_back(*board0);
-    stack1->z_axis.push_back(*board0);
-    stack2->z_axis.push_back(*board0);
-    stack2->z_axis.push_back(*board1);
-    stack2->z_axis.push_back(*board2);
-    stack2->z_axis.push_back(*board0);
-    stack3->z_axis.push_back(*board0);
-    stack3->z_axis.push_back(*board2);
-    stack3->z_axis.push_back(*board1);
-    stack3->z_axis.push_back(*board0);
-    stack4->z_axis.push_back(*board0);
-    stack4->z_axis.push_back(*board0);
-    stack4->z_axis.push_back(*board0);
-    stack4->z_axis.push_back(*board0);
-
-    std::vector<BoardStack> boardStack = { *stack1,*stack2,*stack3,*stack4 };
-    FullBoard* fullboard = new FullBoard(8, 4, 4, boardStack);
-    */
-
     Board* board0 = new Board(0, 0);
     Board* board1 = new Board(0x20400ULL, 0x40200ULL);
     Board* board2 = new Board(0x40200ULL, 0x20400ULL);
@@ -142,9 +113,9 @@ std::cout<<"here"<<std::endl;
     stack4->z_axis.push_back(*board0);
 
     std::vector<BoardStack> boardStack = { *stack1,*stack2,*stack3,*stack4 };
-    FullBoard* fullboard = new FullBoard(4, 4, 4, boardStack);
+    FullBoard fullboard = FullBoard(4, 4, 4, boardStack);
 
-    printFullBoard(*fullboard);
+    std::cout<<fullboard;
 
     sf::RenderWindow window(sf::VideoMode::getDesktopMode(), "4D Othello");
     window.setFramerateLimit(60);
@@ -153,19 +124,16 @@ std::cout<<"here"<<std::endl;
     int size = 50;
     int thick = 3;
     Reference TLCorner = { 50, 100 };
-    std::vector<Move> moveList = movegen(*fullboard);
+    std::vector<Move> moveList = movegen(fullboard);
     while (window.isOpen()) {
 
         window.clear();
 
-        viewFullBoard(window, *fullboard, TLCorner, size, thick);
-        if (moveList.empty()) {
-            moveList = movegen(*fullboard);
-            if (moveList.empty()) {
-                std::cout << "gameOver" << std::endl;
-            }
+        viewFullBoard(window, fullboard, TLCorner, size, thick);
+        if (gameOver(fullboard)) {
+            std::cout << "gameOver" << std::endl;
         }
-        viewMoves(window, *fullboard, TLCorner, size, thick, moveList);
+        viewMoves(window, fullboard, TLCorner, size, thick, moveList);
 
         window.display();
 
@@ -177,13 +145,13 @@ std::cout<<"here"<<std::endl;
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) { window.close(); }
 
-            if (event.type == sf::Event::MouseButtonPressed && fullboard->color == 0) {
+            if (event.type == sf::Event::MouseButtonPressed && fullboard.color == 0) {
                 if (event.key.code == sf::Mouse::Left) {
-                    int l = (x - (TLCorner.posX - size / 2)) / ((size + thick) * fullboard->board_size + 4);
-                    int i = ((x - (TLCorner.posX - size / 2)) / ((size + thick) * fullboard->board_size + 4) - l) * fullboard->board_size;
-                    int k = (y - (TLCorner.posY - size / 2)) / ((size + thick) * fullboard->board_size + 4);
-                    int j = fullboard->board_size - ((y - (TLCorner.posY - size / 2)) / ((size + thick) * fullboard->board_size + 4) - k) * fullboard->board_size;
-                    k = fullboard->z_size - 1 - k;
+                    int l = (x - (TLCorner.posX - size / 2)) / ((size + thick) * fullboard.board_size + 4);
+                    int i = ((x - (TLCorner.posX - size / 2)) / ((size + thick) * fullboard.board_size + 4) - l) * fullboard.board_size;
+                    int k = (y - (TLCorner.posY - size / 2)) / ((size + thick) * fullboard.board_size + 4);
+                    int j = fullboard.board_size - ((y - (TLCorner.posY - size / 2)) / ((size + thick) * fullboard.board_size + 4) - k) * fullboard.board_size;
+                    k = fullboard.z_size - 1 - k;
 
                     U64 sq = 1ULL << (j * 8 + i);
                     for (Move& move : moveList) {
@@ -191,13 +159,14 @@ std::cout<<"here"<<std::endl;
                         if (move.move == sq && move.z == k && move.w == l) {
                             makeMove(fullboard, move);
                             window.clear();
-                            viewFullBoard(window, *fullboard, TLCorner, size, thick);
+                            viewFullBoard(window, fullboard, TLCorner, size, thick);
                             window.display();
-                            std::cout<<(int)fullboard->color<<std::endl;
-                            //greedyMoveMake(fullboard);
-                            depthMakeMove(fullboard, 4);
-                            
-                            moveList = movegen(*fullboard);
+                            Move move = advancedGreedyEval(fullboard);
+                            //Move move = depthSearch(fullboard, 4);
+                            makeMove(fullboard, move);
+                            //Need to deal with passing, possible update rendering logic
+
+                            moveList = movegen(fullboard);
                             break;
                         }
                     }

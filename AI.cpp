@@ -1,70 +1,109 @@
 #include "board.cpp"
+#include <optional>
 
-void greedyMoveMake(FullBoard* fullboard) {
-    std::vector<Move> moveList = movegen(*fullboard);
-    if (moveList.empty()) {
-        return;
-    }
-    int max = 0;
-    Move* maxMove;
-    int scoreGain = 0;
-    for (Move& move : moveList) {
-        if ((move.move & 0x9000009ULL) && (
-            move.z == 0 && move.w == 0 ||
-            move.z == 0 && move.w == fullboard->w_size ||
-            move.z == fullboard->z_size && move.w == 0 ||
-            move.z == fullboard->z_size && move.w == fullboard->w_size
-            )) {
-            scoreGain += 10;
-        }
-        FullBoard tempBoard = *fullboard;
-        makeMove(&tempBoard, move);
-        scoreGain += tempBoard.score[fullboard->color] - fullboard->score[fullboard->color];
-        if (max < scoreGain) {
-            max = scoreGain;
-            maxMove = &move;
-        }
-    }
-    makeMove(fullboard, *maxMove);
+#define CORNER 0x9000009ULL
+#define EDGE 0xf09090fULL
+
+using std::string;
+using std::vector;
+
+bool isCornerMove(const Move& move, const FullBoard& fullboard) {
+    return (move.move & CORNER) && (
+        (move.z == 0 || move.z == fullboard.z_size-1) && 
+        (move.w == 0 ||move.w == fullboard.w_size-1)
+        );
 }
 
-int depthSearch(FullBoard fullboard, int depth, int alpha, int beta) {
-    if (depth == 0) {
-
-        int eval = fullboard.score[fullboard.color]-fullboard.score[!fullboard.color] + movegen(fullboard).size()-movegen(fullboard).size();
-    
-        for (int w = 0; w < fullboard.w_size; w++) {
-            for (int z = 0; z < fullboard.z_size; z++) {
-                Board curBoard =fullboard.w_axis[w].z_axis[z];
-                int mult=1;
-                if((w==0&&z==0)||(w==0&&z==fullboard.z_size-1)||(w==fullboard.w_size-1&&z==0)||(w==fullboard.w_size-1&&z==fullboard.z_size-1)){
-                    eval+=Bitcount(curBoard.board[fullboard.color]);
-                    eval-=Bitcount(curBoard.board[!fullboard.color]);
-                    mult=4;
-                }
-                eval+=4*Bitcount(curBoard.board[fullboard.color]&0x9000009ULL)*mult;
-                eval+=2*Bitcount(curBoard.board[fullboard.color]&0xf09090fULL)*mult;
-                eval-=4*Bitcount(curBoard.board[!fullboard.color]&0x9000009ULL)*mult;
-                eval-=2*Bitcount(curBoard.board[!fullboard.color]&0xf09090fUL)*mult;
-            }
+// Basic greedy evaluation function that returns the best move based on immediate score gain
+Move greedyEval(FullBoard& fullboard) {
+    vector<Move> moveList = movegen(fullboard);
+    if (moveList.empty()) {
+        return Move(true, 0);
+    }
+    int max = std::numeric_limits<int>::min();;
+    Move& bestMove = moveList[0];
+    for (Move& move : moveList) {
+        FullBoard tempBoard = fullboard;
+        makeMove(tempBoard, move);
+        int scoreGain = tempBoard.score[fullboard.color] - fullboard.score[fullboard.color];
+        if (max < scoreGain) {
+            max = scoreGain;
+            bestMove = move;
         }
-        return eval;
+    }
+    return bestMove;
+}
+
+//Static Evaluation Function
+//Incentivizes corner and edge control, more score, and more move options
+int eval(FullBoard& fullboard) {
+    //Initial greedy evaluation
+    int eval = fullboard.score[fullboard.color]-fullboard.score[!fullboard.color];
+
+    //Encourage more moves for the player and less for the opponent
+    eval += movegen(fullboard).size();
+    fullboard.color = !fullboard.color;
+    eval -= movegen(fullboard).size();
+    fullboard.color = !fullboard.color;
+
+    //Corner and edge bonuses
+    for (int w = 0; w < fullboard.w_size; w++) {
+        for (int z = 0; z < fullboard.z_size; z++) {
+            Board curBoard =fullboard.w_axis[w].z_axis[z];
+            int mult=1;
+            if((w==0&&z==0)||(w==0&&z==fullboard.z_size-1)||(w==fullboard.w_size-1&&z==0)||(w==fullboard.w_size-1&&z==fullboard.z_size-1)){
+                eval+=Bitcount(curBoard.board[fullboard.color]);
+                eval-=Bitcount(curBoard.board[!fullboard.color]);
+                mult=4;
+            }
+            eval+=4*Bitcount(curBoard.board[fullboard.color]&CORNER)*mult;
+            eval+=2*Bitcount(curBoard.board[fullboard.color]&EDGE)*mult;
+            eval-=4*Bitcount(curBoard.board[!fullboard.color]&CORNER)*mult;
+            eval-=2*Bitcount(curBoard.board[!fullboard.color]&EDGE)*mult;
+        }
+    }
+    return eval;
+}
+
+Move advancedGreedyEval(FullBoard& fullboard) {
+    vector<Move> moveList = movegen(fullboard);
+    if (moveList.empty()) {
+        return Move(true, 0);
+    }
+    int max = std::numeric_limits<int>::min();;
+    Move& bestMove = moveList[0];
+    for (Move& move : moveList) {
+        FullBoard tempBoard = fullboard;
+        makeMove(tempBoard, move);
+        int scoreGain = eval(tempBoard);
+        if (max < scoreGain) {
+            max = scoreGain;
+            bestMove = move;
+        }
+    }
+    return bestMove;
+}
+
+Move depthSearch(FullBoard& fullboard, int depth, int alpha = -INFINITY, int beta = INFINITY) {
+    if (depth == 0) {
+        
+        return  Move(true, eval(fullboard));
     }
 
-    std::vector<Move> moveList = movegen(fullboard);
+    vector<Move> moveList = movegen(fullboard);
     if (moveList.empty()) {
         fullboard.color = !fullboard.color;
-        return -depthSearch(fullboard, depth - 1, -beta, -alpha);
+        return Move(true, -(depthSearch(fullboard, depth - 1, -beta, -alpha).value));
     }
 
     int mult=1;
     for (Move& move : moveList) {
-        if((move.w==0&&move.z==0)||(move.w==0&&move.z==fullboard.z_size-1)||(move.w==fullboard.w_size-1&&move.z==0)||(move.w==fullboard.w_size-1&&move.z==fullboard.z_size-1)){
-            move.sortVal+=1;
+        if(isCornerMove(move, fullboard)) {
+            move.value+=1;
             mult=4;
         }
-        move.sortVal+=4*Bitcount(move.move&0x9000009ULL)*mult;
-        move.sortVal+=2*Bitcount(move.move&0xf09090fULL)*mult;
+        move.value+=4*Bitcount(move.move&CORNER)*mult;
+        move.value+=2*Bitcount(move.move&EDGE)*mult;
     }
     std::sort(moveList.begin(), moveList.end());
 
@@ -72,57 +111,19 @@ int depthSearch(FullBoard fullboard, int depth, int alpha, int beta) {
     int score = -INFINITY;
     for (Move& move : moveList) {
         FullBoard tempBoard = fullboard;
-        makeMove(&tempBoard, move);
-        score = std::max(score, -depthSearch(tempBoard, depth - 1, -beta, -alpha));
+        makeMove(tempBoard, move);
+
+        Move res = depthSearch(tempBoard, depth - 1, -beta, -alpha);
+        score = std::max(score, -res.value);
 
         if (score > alpha) {
-            alpha = score;
-        }
-        if (alpha >= beta) {
-            break;
-        }
-    }
-    return score;
-}
-
-void depthMakeMove(FullBoard* fullboard, int depth, int alpha = -INFINITY, int beta = INFINITY) {
-
-    std::vector<Move> moveList = movegen(*fullboard);
-    if (moveList.empty()) {
-        fullboard->color = !fullboard->color;
-        return;
-    }
-
-    int mult=1;
-    for (Move& move : moveList) {
-        move.sortVal=0;
-        if((move.w==0&&move.z==0)||(move.w==0&&move.z==fullboard->z_size-1)||(move.w==fullboard->w_size-1&&move.z==0)||(move.w==fullboard->w_size-1&&move.z==fullboard->z_size-1)){
-            move.sortVal+=1;
-            mult=4;
-        }
-        move.sortVal+=4*Bitcount(move.move&0x9000009ULL)*mult;
-        move.sortVal+=2*Bitcount(move.move&0xf09090fULL)*mult;
-    }
-    std::sort(moveList.begin(), moveList.end());
-
-    Move bestMove = moveList[0];
-    int score = -INFINITY;
-    for (Move& move : moveList) {
-        
-        FullBoard tempBoard = *fullboard;
-        makeMove(&tempBoard, move);
-
-        score = std::max(score, -depthSearch(tempBoard, depth - 1, -beta, -alpha));
-
-        if (score > alpha) {
-            alpha = score;
             bestMove = move;
+            alpha = score;
         }
         if (alpha >= beta) {
             break;
         }
     }
-
-    makeMove(fullboard, bestMove);
+    bestMove.value = score;
+    return bestMove;
 }
-

@@ -12,6 +12,8 @@
 ---
 ## Known Issues
 While the game is functional, there are a few **bugs** that I haven't tried to fix.
+
+When Running out of moves incorrectly ends game rather than passing
 ---
 
 ## Learning Objectives
@@ -20,3 +22,10 @@ This project was primarily created as a way to:
 - Improve my proficiency in **C++**.
 - Experiment with designing AI logic for a complex game.
 ---
+
+## TODO:
+- Add in a restart command, or GUI element
+- Mode select, for AI, multiplayer, or singleplayer
+- Rewrite for clarity
+- Give AI zobrist hash of position
+
