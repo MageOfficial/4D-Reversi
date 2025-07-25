@@ -1,14 +1,14 @@
 #include "board.hpp"
 
-Game::Game(int bs, int ws, int zs, vector<vector<Board>>& grid)
-    : board_size(bs), w_size(ws), z_size(zs), board_grid(grid) {
-    boardArea = boardBits[bs - 1];
-    notLeft = 0xfefefefefefefefe;
-    if (bs == 8) {
-        notRight = 0x7f7f7f7f7f7f7f7f;
-    } else {
-        notRight = boardArea;
-    }
+
+Game::Game(int bs, int ws, int zs, std::vector<std::vector<Board>>& grid)
+    : board_size(bs),
+      w_size(ws),
+      z_size(zs),
+      board_grid(grid),
+      boardArea(boardBits[bs - 1]),
+      notLeft(0xfefefefefefefefeULL),
+      notRight(bs == 8 ? 0x7f7f7f7f7f7f7f7fULL : boardBits[bs - 1]) {
     updateScore();
 }
 
@@ -26,10 +26,10 @@ void Game::updateScore() {
 }
 
 void Game::processDirection(U64& toFlip, U64 move, int shift, U64 boundary, const Board* curBoard, int color) {
-    U64 candidates = curBoard->board[1 - color] & ((shift > 0) ? (move << shift) : (move >> -shift)) & boundary;
+    U64 candidates = curBoard->board[1 - color] & shiftBits(move, shift) & boundary;
     U64 possibleFlips = candidates;
     while (candidates != 0) {
-        candidates = ((shift > 0) ? (candidates << shift) : (candidates >> -shift)) & boundary;
+        candidates = shiftBits(candidates, shift) & boundary;
         if (curBoard->board[color] & candidates) {
             toFlip |= possibleFlips;
             break;
@@ -39,13 +39,13 @@ void Game::processDirection(U64& toFlip, U64 move, int shift, U64 boundary, cons
     }
 }
 
-U64 Game::calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameCondition, int shift) {
+U64 Game::calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameBounds, int shift) {
     U64 moves = 0;
     U64 candidates;
 
-    candidates = enemyPieces & ((shift > 0) ? (playerPieces >> shift) : (playerPieces << -shift)) & gameCondition;
+    candidates = enemyPieces & shiftBits(playerPieces, shift) & gameBounds;
     while (candidates != 0) {
-        candidates = ((shift > 0) ? (candidates >> shift) : (candidates << -shift)) & gameCondition;
+        candidates = shiftBits(candidates, shift)  & gameBounds;
 
         moves |= unoccupied & candidates;
         candidates = enemyPieces & candidates;
@@ -78,7 +78,19 @@ void Game::makeMove(const Move& move) {
     curBoard->board[color] ^= toFlip;
     curBoard->board[1 - color] ^= toFlip;
 
-    // 3D & 4D not implemented here, see your template in board.hpp if needed
+    {//3D & 4D
+        U64 candidatesArray[9];
+        std::fill(std::begin(candidatesArray), std::end(candidatesArray), move.move);
+        bool boolArrays[8][9] = {};
+        for (int i = 0; i < 8; i++) 
+        std::fill(std::begin(boolArrays[i]), std::end(boolArrays[i]), false);
+
+        static_for<8>([&](auto dir) {
+            constexpr std::size_t i = dir.value;
+            makeMoveRecursive<i>(move.w, move.z, candidatesArray, boolArrays[i]);
+        });
+
+    }
 
     color = !color;
     updateScore();
@@ -123,60 +135,59 @@ vector<Move> Game::movegen() {
                     { 1, -1}   // Direction 7: bottom-right
                 };
                 for (int dir = 0;dir < 8;dir++) {
-                int iChange = i + directionOffsets[dir][0];
-                int jChange = j + directionOffsets[dir][1];
-                if (iChange >= 0 && iChange < w_size && jChange >= 0 && jChange < z_size) {
-                    nextBoard = board_grid[iChange][jChange];
-                    U64 nextEnemyPieces = nextBoard.board[1 - color];
-                    U64 candidates[9] = {
-                    nextEnemyPieces & (playerPieces),
-                    nextEnemyPieces & (playerPieces << 1) & notLeft & boardArea,
-                    nextEnemyPieces & (playerPieces << 9) & notLeft & boardArea,
-                    nextEnemyPieces & (playerPieces << 8) & notLeft & boardArea,
-                    nextEnemyPieces & (playerPieces << 7) & notRight,
-                    nextEnemyPieces & (playerPieces >> 1) & notRight,
-                    nextEnemyPieces & (playerPieces >> 9) & notRight,
-                    nextEnemyPieces & (playerPieces >> 8) & notRight,
-                    nextEnemyPieces & (playerPieces >> 7) & notLeft & boardArea
-                    };
+                    int iChange = i + directionOffsets[dir][0];
+                    int jChange = j + directionOffsets[dir][1];
+                    if (iChange >= 0 && iChange < w_size && jChange >= 0 && jChange < z_size) {
+                        nextBoard = board_grid[iChange][jChange];
+                        U64 nextEnemyPieces = nextBoard.board[1 - color];
+                        U64 candidates[9] = {
+                            nextEnemyPieces & (playerPieces),
+                            nextEnemyPieces & (playerPieces << 1) & notLeft & boardArea,
+                            nextEnemyPieces & (playerPieces << 9) & notLeft & boardArea,
+                            nextEnemyPieces & (playerPieces << 8) & notLeft & boardArea,
+                            nextEnemyPieces & (playerPieces << 7) & notRight,
+                            nextEnemyPieces & (playerPieces >> 1) & notRight,
+                            nextEnemyPieces & (playerPieces >> 9) & notRight,
+                            nextEnemyPieces & (playerPieces >> 8) & notRight,
+                            nextEnemyPieces & (playerPieces >> 7) & notLeft & boardArea
+                        };
 
-                    int increment = 2;
-                    
-                    iChange = i + increment*directionOffsets[dir][0];
-                    jChange = j + increment*directionOffsets[dir][1];
+                        int increment = 2;
+                        
+                        iChange = i + increment*directionOffsets[dir][0];
+                        jChange = j + increment*directionOffsets[dir][1];
 
 
-                    while (iChange >= 0 && iChange < w_size && jChange >= 0 && jChange < z_size) {
+                        while (iChange >= 0 && iChange < w_size && jChange >= 0 && jChange < z_size) {
 
-                    nextBoard = board_grid[iChange][jChange];
+                            nextBoard = board_grid[iChange][jChange];
 
-                    candidates[1] = (candidates[1] << 1) & notLeft & boardArea;
-                    candidates[2] = (candidates[2] << 9) & notLeft & boardArea;
-                    candidates[3] = (candidates[3] << 8) & notLeft & boardArea;
-                    candidates[4] = (candidates[4] << 7) & notRight;
-                    candidates[5] = (candidates[5] >> 1) & notRight;
-                    candidates[6] = (candidates[6] >> 9) & notRight;
-                    candidates[7] = (candidates[7] >> 8) & notRight;
-                    candidates[8] = (candidates[8] >> 7) & notLeft & boardArea;
+                            candidates[1] = (candidates[1] << 1) & notLeft & boardArea;
+                            candidates[2] = (candidates[2] << 9) & notLeft & boardArea;
+                            candidates[3] = (candidates[3] << 8) & notLeft & boardArea;
+                            candidates[4] = (candidates[4] << 7) & notRight;
+                            candidates[5] = (candidates[5] >> 1) & notRight;
+                            candidates[6] = (candidates[6] >> 9) & notRight;
+                            candidates[7] = (candidates[7] >> 8) & notRight;
+                            candidates[8] = (candidates[8] >> 7) & notLeft & boardArea;
 
-                    U64 moves = 0;
-                    for (int d = 0; d < 9;d++) {
-                        moves |= ~nextBoard.board[2] & candidates[d];
-                        candidates[d] = nextBoard.board[1 - color] & candidates[d];
+                            U64 moves = 0;
+                            for (int d = 0; d < 9;d++) {
+                                moves |= ~nextBoard.board[2] & candidates[d];
+                                candidates[d] = nextBoard.board[1 - color] & candidates[d];
+                            }
+
+                            while (moves) {
+                                moveList.push_back(Move(iChange, jChange, PopBit(moves))); //****U64 for each board which has moves, then pop out and make movelist ****
+                            }
+
+                            increment++;
+                            iChange = i + increment*directionOffsets[dir][0];
+                            jChange = j + increment*directionOffsets[dir][1];
+                        }
                     }
-
-                    while (moves) {
-                        moveList.push_back(Move(iChange, jChange, PopBit(moves))); //****U64 for each board which has moves, then pop out and make movelist ****
-                    }
-
-                    increment++;
-                    iChange = i + increment*directionOffsets[dir][0];
-                    jChange = j + increment*directionOffsets[dir][1];
-                    }
-                }
                 }
             }
-
         }
     }
     return moveList;

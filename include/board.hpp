@@ -12,27 +12,23 @@
 #define _ASSUME(cond) __assume(cond)
 #define _Compiletime __forceinline static constexpr
 #define _NoInline __declspec(noinline)
-#define _Inline inline
 #define _ForceInline __forceinline
 #define Bitcount(X) __popcnt64(X)
 #elif defined(__clang__)
 #define _ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
 #define _Compiletime __attribute__((always_inline)) static constexpr
 #define _NoInline __attribute__((noinline))
-#define _Inline inline
 #define _ForceInline __attribute__((always_inline))
 #define Bitcount(X) static_cast<uint64_t>(__builtin_popcountll(X))
 #elif defined(__GNUC__)
 #define _ASSUME(cond) ((cond) ? static_cast<void>(0) : __builtin_unreachable())
 #define _Compiletime __attribute__((always_inline)) static constexpr
 #define _NoInline __attribute__((noinline))
-#define _Inline inline
 #define _ForceInline __attribute__((always_inline)) inline
 #define Bitcount(X) static_cast<uint64_t>(__builtin_popcountll(X))
 #else
 #define _ASSUME(cond) static_cast<void>(!!(cond))
 #define _Compiletime static constexpr
-#define _Inline inline
 #endif
 
 #define SquareOf(X) _tzcnt_u64(X)
@@ -43,10 +39,14 @@ typedef uint64_t U64;
 using std::string;
 using std::vector;
 
-_Inline U64 PopBit(U64& val) {
+inline U64 PopBit(U64& val) {
     U64 lsb = _blsi_u64(val);
     val ^= lsb;
     return lsb;
+}
+
+inline U64 shiftBits(U64 bits, int shift) {
+    return shift > 0 ? bits >> shift : bits << -shift;
 }
 
 template <typename F, std::size_t... Is>
@@ -71,9 +71,25 @@ enum Color {
 struct Board {
   U64 board[3];
   Board(U64 w, U64 b) {
-    board[0] = b;
-    board[1] = w;
-    board[2] = w | b;
+    board[Black] = b;
+    board[White] = w;
+    board[Occupied] = w | b;
+  }
+};
+
+struct Move {
+  bool pass = false;
+  int w = 0;
+  int z = 0;
+  int value = 0;
+  U64 move = 0;
+
+  Move(int w, int z, U64 move) : w(w), z(z), move(move) {}
+  Move(int w, int z, U64 move, int value) : w(w), z(z), move(move), value(value) {}
+  Move(bool pass, int value) : pass(pass), value(value) {}
+
+  bool operator<(const Move& other) const {
+    return value > other.value;
   }
 };
 
@@ -84,25 +100,29 @@ public:
     Game(int bs, int ws, int zs, vector<vector<Board>>& grid);
 
     void updateScore();
-    void makeMove(const struct Move &move);
-    vector<struct Move> movegen();
+    void makeMove(const Move &move);
+    vector<Move> movegen();
     bool gameOver();
 
     friend std::ostream &operator<<(std::ostream &os, const Game &game);
-
+    
+    // Constants
     const int board_size;
     const int w_size;
     const int z_size;
-    bool color = Black; // 0 = black, 1 = white
-    int score[4] = {};
-    U64 boardArea;
-    U64 notLeft;
-    U64 notRight;
 
+    // Game state
+    int score[4] = {};
+    bool color = Black;
     vector<vector<Board>> board_grid; // [w][z]
 
+    // Bitboard Masks
+    const U64 boardArea;
+    const U64 notLeft;
+    const U64 notRight;
+
 private:
-    //Interal helper functions
+    //Internal helper functions
     //Recursively makes moves in 3D and 4D
     template<int dir> void makeMoveRecursive(const int w, const int z, U64 candidates[9], bool bools[9]) {
         static constexpr int dW[] = {1, 1, 0, -1, -1, -1, 0, 1};
@@ -146,23 +166,7 @@ private:
         return;
     }
 
-    U64 calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameCondition, int shift);
+    U64 calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameBounds, int shift);
     void processDirection(U64 &toFlip, U64 move, int shift, U64 boundary, const Board *curBoard, int color);
     std::string toString() const;
     };
-
-struct Move {
-  bool pass = false;
-  int w = 0;
-  int z = 0;
-  int value = 0;
-  U64 move = 0;
-
-  Move(int w, int z, U64 move) : w(w), z(z), move(move) {}
-  Move(int w, int z, U64 move, int value) : w(w), z(z), move(move), value(value) {}
-  Move(bool pass, int value) : pass(pass), value(value) {}
-
-  bool operator<(const Move& other) const {
-    return value > other.value;
-  }
-};
