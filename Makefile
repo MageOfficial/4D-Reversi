@@ -14,7 +14,6 @@ allR: $(OBJ_DIR) compileR linkR cleanobj run
 $(OBJ_DIR):
 	@if not exist $(OBJ_DIR) mkdir $(OBJ_DIR)
 
-
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CXX) -c $< $(CXXFLAGS) -o $@
 

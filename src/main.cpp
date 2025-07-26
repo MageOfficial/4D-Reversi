@@ -23,7 +23,6 @@ void viewGame(sf::RenderWindow& window, Game& game, Reference TLCorner, int size
     sf::Texture whitePieceText, blackPieceText;
     whitePieceText.loadFromFile("textures/whitePiece.png");
     blackPieceText.loadFromFile("textures/blackPiece.png");
-
     for (int l = 0; l < game.w_size; l++) {
         for (int k = game.z_size - 1; k >= 0; k--) {
             for (int j = game.board_size - 1; j >= 0; j--) {

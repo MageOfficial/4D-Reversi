@@ -76,7 +76,7 @@ void Game::makeMove(const Move& move) {
     processDirection(toFlip, move.move, 9, notLeft & boardArea, curBoard, color);
 
     curBoard->board[color] ^= toFlip;
-    curBoard->board[1 - color] ^= toFlip;
+    curBoard->board[1 - color] ^= toFlip; 
 
     {//3D & 4D
         U64 candidatesArray[9];
@@ -95,6 +95,8 @@ void Game::makeMove(const Move& move) {
     color = !color;
     updateScore();
 }
+
+
 
 vector<Move> Game::movegen() {
     vector<Move> moveList;
@@ -134,11 +136,12 @@ vector<Move> Game::movegen() {
                     { 0, -1},  // Direction 6: down
                     { 1, -1}   // Direction 7: bottom-right
                 };
+
                 for (int dir = 0;dir < 8;dir++) {
-                    int iChange = i + directionOffsets[dir][0];
-                    int jChange = j + directionOffsets[dir][1];
-                    if (iChange >= 0 && iChange < w_size && jChange >= 0 && jChange < z_size) {
-                        nextBoard = board_grid[iChange][jChange];
+                    int iNew = i + directionOffsets[dir][0];
+                    int jNew = j + directionOffsets[dir][1];
+                    if (iNew >= 0 && iNew < w_size && jNew >= 0 && jNew < z_size) {
+                        nextBoard = board_grid[iNew][jNew];
                         U64 nextEnemyPieces = nextBoard.board[1 - color];
                         U64 candidates[9] = {
                             nextEnemyPieces & (playerPieces),
@@ -154,13 +157,13 @@ vector<Move> Game::movegen() {
 
                         int increment = 2;
                         
-                        iChange = i + increment*directionOffsets[dir][0];
-                        jChange = j + increment*directionOffsets[dir][1];
+                        iNew = i + increment*directionOffsets[dir][0];
+                        jNew = j + increment*directionOffsets[dir][1];
 
 
-                        while (iChange >= 0 && iChange < w_size && jChange >= 0 && jChange < z_size) {
+                        while (iNew >= 0 && iNew < w_size && jNew >= 0 && jNew < z_size) {
 
-                            nextBoard = board_grid[iChange][jChange];
+                            nextBoard = board_grid[iNew][jNew];
 
                             candidates[1] = (candidates[1] << 1) & notLeft & boardArea;
                             candidates[2] = (candidates[2] << 9) & notLeft & boardArea;
@@ -173,17 +176,17 @@ vector<Move> Game::movegen() {
 
                             U64 moves = 0;
                             for (int d = 0; d < 9;d++) {
-                                moves |= ~nextBoard.board[2] & candidates[d];
+                                moves |= ~nextBoard.board[Occupied] & candidates[d];
                                 candidates[d] = nextBoard.board[1 - color] & candidates[d];
                             }
 
                             while (moves) {
-                                moveList.push_back(Move(iChange, jChange, PopBit(moves))); //****U64 for each board which has moves, then pop out and make movelist ****
+                                moveList.push_back(Move(iNew, jNew, PopBit(moves))); //****U64 for each board which has moves, then pop out and make movelist ****
                             }
 
                             increment++;
-                            iChange = i + increment*directionOffsets[dir][0];
-                            jChange = j + increment*directionOffsets[dir][1];
+                            iNew = i + increment*directionOffsets[dir][0];
+                            jNew = j + increment*directionOffsets[dir][1];
                         }
                     }
                 }

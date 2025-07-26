@@ -14,6 +14,8 @@ bool isCornerMove(const Move& move, const Game& game) {
     );
 }
 
+inline Move PASS{true, 0};
+
 // Basic greedy evaluation function that returns the best move based on immediate score gain
 Move greedyEval(Game& game) {
     vector<Move> moveList = game.movegen();
@@ -40,11 +42,24 @@ int eval(Game& game) {
     //Initial greedy evaluation
     int eval = game.score[game.color] - game.score[!game.color];
 
-    //Encourage more moves for the player and less for the opponent
-    eval += game.movegen().size();
+    //Options Incentive
+    int playerMoves=game.movegen().size();
+    eval += playerMoves;
     game.color = !game.color;
-    eval -= game.movegen().size();
+    int enemyMoves=game.movegen().size();
+    eval -= enemyMoves;
     game.color = !game.color;
+
+    //Game Over
+    if(playerMoves == 0 && enemyMoves == 0){
+        if(game.score[game.color] > game.score[!game.color]) {
+            return std::numeric_limits<int>::max(); // Player wins
+        } else if(game.score[game.color] < game.score[!game.color]) {
+            return std::numeric_limits<int>::min(); // Player loses
+        } else {
+            return 0; // Draw
+        }
+    }
 
     //Corner and edge bonuses
     for (int w = 0; w < game.w_size; w++) {
@@ -85,17 +100,7 @@ Move advancedGreedyEval(Game& game) {
     return bestMove;
 }
 
-Move depthSearch(Game& game, int depth, int alpha = std::numeric_limits<int>::min(), int beta = std::numeric_limits<int>::max()) {
-    if (depth == 0) {
-        return Move(true, eval(game));
-    }
-
-    vector<Move> moveList = game.movegen();
-    if (moveList.empty()) {
-        game.color = !game.color;
-        return Move(true, -(depthSearch(game, depth - 1, -beta, -alpha).value));
-    }
-
+void sortMoves( Game& game, vector<Move> &moveList) {
     int mult = 1;
     for (Move& move : moveList) {
         if (isCornerMove(move, game)) {
@@ -106,18 +111,38 @@ Move depthSearch(Game& game, int depth, int alpha = std::numeric_limits<int>::mi
         move.value += 2 * Bitcount(move.move & EDGE) * mult;
     }
     std::sort(moveList.begin(), moveList.end());
+}
+
+
+Move depthSearch(Game& game, int depth, int alpha = std::numeric_limits<int>::min(), int beta = std::numeric_limits<int>::max()) {
+    if (depth == 0) {
+        return Move(true, eval(game));
+    }
+
+    vector<Move> moveList = game.movegen();
+    if (moveList.empty()) {
+        game.makeMove(PASS);
+        if(game.movegen().empty()) return Move(true, eval(game)); //Game Over
+
+        return Move(true, -(depthSearch(game, depth - 1, -beta, -alpha).value));
+    }
+
+    sortMoves(game, moveList);
 
     Move bestMove = moveList[0];
-    int score = -INFINITY;
+    int score = std::numeric_limits<int>::min();
     for (Move& move : moveList) {
         Game tempBoard = game;
         tempBoard.makeMove(move);
 
         Move res = depthSearch(tempBoard, depth - 1, -beta, -alpha);
-        score = std::max(score, -res.value);
+
+        if(-res.value>score) {
+            score = -res.value;
+            bestMove = move;
+        }
 
         if (score > alpha) {
-            bestMove = move;
             alpha = score;
         }
         if (alpha >= beta) {
