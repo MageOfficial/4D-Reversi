@@ -1,10 +1,15 @@
 #pragma once
 
 #include "board.hpp"
-#include <vector>
+#include <optional>
 
 #define CORNER 0x9000009ULL
 #define EDGE 0xf09090fULL
+
+using std::string;
+using std::vector;
+
+extern int posChecked;
 
 bool isCornerMove(const Move& move, const Game& game);
 

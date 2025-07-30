@@ -25,8 +25,8 @@ void Game::updateScore() {
     }
 }
 
-void Game::processDirection(U64& toFlip, U64 move, int shift, U64 boundary, const Board* curBoard, int color) {
-    U64 candidates = curBoard->board[1 - color] & shiftBits(move, shift) & boundary;
+void Game::processDirection(U64& toFlip, U64 move, int shift, U64 boundary, const Board* curBoard, bool color) {
+    U64 candidates = curBoard->board[!color] & shiftBits(move, shift) & boundary;
     U64 possibleFlips = candidates;
     while (candidates != 0) {
         candidates = shiftBits(candidates, shift) & boundary;
@@ -34,24 +34,9 @@ void Game::processDirection(U64& toFlip, U64 move, int shift, U64 boundary, cons
             toFlip |= possibleFlips;
             break;
         }
-        possibleFlips |= curBoard->board[1 - color] & candidates;
-        candidates = curBoard->board[1 - color] & candidates;
+        possibleFlips |= curBoard->board[!color] & candidates;
+        candidates = curBoard->board[!color] & candidates;
     }
-}
-
-U64 Game::calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameBounds, int shift) {
-    U64 moves = 0;
-    U64 candidates;
-
-    candidates = enemyPieces & shiftBits(playerPieces, shift) & gameBounds;
-    while (candidates != 0) {
-        candidates = shiftBits(candidates, shift)  & gameBounds;
-
-        moves |= unoccupied & candidates;
-        candidates = enemyPieces & candidates;
-    }
-
-    return moves;
 }
 
 void Game::makeMove(const Move& move) {
@@ -76,7 +61,7 @@ void Game::makeMove(const Move& move) {
     processDirection(toFlip, move.move, 9, notLeft & boardArea, curBoard, color);
 
     curBoard->board[color] ^= toFlip;
-    curBoard->board[1 - color] ^= toFlip; 
+    curBoard->board[!color] ^= toFlip; 
 
     {//3D & 4D
         U64 candidatesArray[9];
@@ -96,7 +81,20 @@ void Game::makeMove(const Move& move) {
     updateScore();
 }
 
+U64 Game::calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameBounds, int shift) {
+    U64 moves = 0;
+    U64 candidates;
 
+    candidates = enemyPieces & shiftBits(playerPieces, shift) & gameBounds;
+    while (candidates != 0) {
+        candidates = shiftBits(candidates, shift)  & gameBounds;
+
+        moves |= unoccupied & candidates;
+        candidates = enemyPieces & candidates;
+    }
+
+    return moves;
+}
 
 vector<Move> Game::movegen() {
     vector<Move> moveList;
@@ -104,20 +102,20 @@ vector<Move> Game::movegen() {
         for (int j = 0; j < z_size; j++) {
             Board curBoard = board_grid[i][j];
             U64 playerPieces = curBoard.board[color];
-            U64 enemyPieces = curBoard.board[1 - color];
+            U64 enemyPieces = curBoard.board[!color];
             U64 unoccupied = ~curBoard.board[Occupied];
             //2D
             {
                 U64 moves = 0;
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notRight, 1);
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notLeft & boardArea, 7);
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, boardArea, 8);
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notRight, 9);
-
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notLeft & boardArea, -1);
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notRight, -7);
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notRight, -1);
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notLeft & boardArea, -7);
                 moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, boardArea, -8);
-                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notLeft & boardArea, -9);
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notRight, -9);
+
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notLeft & boardArea, 1);
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notRight, 7);
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, boardArea, 8);
+                moves |= calculateMoves(playerPieces, enemyPieces, unoccupied, notLeft & boardArea, 9);
 
                 while (moves) {
                     moveList.push_back(Move(i, j, PopBit(moves)));
@@ -142,7 +140,7 @@ vector<Move> Game::movegen() {
                     int jNew = j + directionOffsets[dir][1];
                     if (iNew >= 0 && iNew < w_size && jNew >= 0 && jNew < z_size) {
                         nextBoard = board_grid[iNew][jNew];
-                        U64 nextEnemyPieces = nextBoard.board[1 - color];
+                        U64 nextEnemyPieces = nextBoard.board[!color];
                         U64 candidates[9] = {
                             nextEnemyPieces & (playerPieces),
                             nextEnemyPieces & (playerPieces << 1) & notLeft & boardArea,
@@ -177,7 +175,7 @@ vector<Move> Game::movegen() {
                             U64 moves = 0;
                             for (int d = 0; d < 9;d++) {
                                 moves |= ~nextBoard.board[Occupied] & candidates[d];
-                                candidates[d] = nextBoard.board[1 - color] & candidates[d];
+                                candidates[d] = nextBoard.board[!color] & candidates[d];
                             }
 
                             while (moves) {

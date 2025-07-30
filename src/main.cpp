@@ -3,6 +3,9 @@
 
 #include "AI.hpp"
 
+#include <chrono>
+#include <iostream>
+
 struct Reference {
     int posX;
     int posY;
@@ -79,6 +82,7 @@ void viewMoves(sf::RenderWindow& window, Game& game, Reference TLCorner, int siz
 }
 
 int main() {
+    int timesRan=0;
     std::cout << "Start!" << std::endl;
     system("chcp 65001 > nul");
     Board* board0 = new Board(0, 0);
@@ -134,11 +138,20 @@ int main() {
                     U64 sq = 1ULL << (j * 8 + i);
                     for (Move& move : moveList) {
                         if (move.move == sq && move.z == k && move.w == l) {
+                            std::cout << "Click" << std::endl;
                             game.makeMove(move);
                             window.clear();
                             viewGame(window, game, TLCorner, size, thick);
                             window.display();
+                            //Implement perf timer 
+                            std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
                             Move aiMove = depthSearch(game, 4);
+                            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+                            std::chrono::duration<double> elapsed_seconds = end - start;
+                            std::cout<<posChecked << " pos"<< std::endl;
+                            std::cout<<elapsed_seconds.count()  << "s"<< std::endl;
+                            std::cout<<double(posChecked)/ elapsed_seconds.count() << " pos/s" << std::endl;
+
                             game.makeMove(aiMove);
                             moveList = game.movegen();
                             break;

@@ -1,11 +1,5 @@
-#include "board.hpp"
-#include <optional>
-
-#define CORNER 0x9000009ULL
-#define EDGE 0xf09090fULL
-
-using std::string;
-using std::vector;
+#include "AI.hpp"
+#include <limits>
 
 bool isCornerMove(const Move& move, const Game& game) {
     return (move.move & CORNER) && (
@@ -36,9 +30,12 @@ Move greedyEval(Game& game) {
     return bestMove;
 }
 
+int posChecked = 0;
+
 //Static Evaluation Function
 //Incentivizes corner and edge control, more score, and more move options
 int eval(Game& game) {
+    posChecked++;
     //Initial greedy evaluation
     int eval = game.score[game.color] - game.score[!game.color];
 
@@ -114,7 +111,7 @@ void sortMoves( Game& game, vector<Move> &moveList) {
 }
 
 
-Move depthSearch(Game& game, int depth, int alpha = std::numeric_limits<int>::min(), int beta = std::numeric_limits<int>::max()) {
+Move depthSearch(Game& game, int depth, int alpha, int beta) {
     if (depth == 0) {
         return Move(true, eval(game));
     }

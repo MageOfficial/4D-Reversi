@@ -46,7 +46,7 @@ inline U64 PopBit(U64& val) {
 }
 
 inline U64 shiftBits(U64 bits, int shift) {
-    return shift > 0 ? bits >> shift : bits << -shift;
+    return (shift > 0) ? bits << shift : bits >> -shift;
 }
 
 template <typename F, std::size_t... Is>
@@ -167,6 +167,6 @@ private:
     }
 
     U64 calculateMoves(U64 playerPieces, U64 enemyPieces, U64 unoccupied, U64 gameBounds, int shift);
-    void processDirection(U64 &toFlip, U64 move, int shift, U64 boundary, const Board *curBoard, int color);
+    void processDirection(U64 &toFlip, U64 move, int shift, U64 boundary, const Board *curBoard, bool color);
     std::string toString() const;
-    };
+};
